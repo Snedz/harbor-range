@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harbor Range — live in-browser demo</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+         background: #0d1117; color: #e6edf3; }
+  main { max-width: 880px; margin: 0 auto; padding: 2rem 1rem 3rem; }
+  h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.05rem; margin: 1.6rem 0 .5rem; color: #9ecbff; }
+  .honest { border: 1px solid #d29922; background: #2d230a; color: #f0d48a;
+            border-radius: 6px; padding: .6rem .8rem; font-weight: 600; }
+  .how { color: #8b949e; font-size: .92rem; line-height: 1.45; }
+  .how code { color: #c9d1d9; }
+  button { font-size: 1rem; padding: .6rem 1.2rem; border-radius: 6px; cursor: pointer;
+           background: #238636; color: #fff; border: 1px solid #2ea043; }
+  button:disabled { opacity: .55; cursor: default; }
+  #status { margin-left: .8rem; color: #8b949e; }
+  pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+        padding: .8rem 1rem; overflow-x: auto; font-size: .86rem; line-height: 1.5;
+        min-height: 3.2rem; white-space: pre-wrap; word-break: break-word; }
+  .green { color: #3fb950; }
+  .red { color: #f85149; }
+  .held { color: #3fb950; font-weight: 700; }
+  .broken { color: #f85149; font-weight: 700; }
+  #verdict { display: none; border-radius: 6px; padding: 1rem; margin-top: 1.6rem;
+             border: 1px solid #238636; background: #0f2417; }
+  #verdict.fail { border-color: #da3633; background: #2a1215; }
+  #verdict .big { font-size: 1.25rem; font-weight: 700; }
+  #verdict .sub { color: #8b949e; margin-top: .35rem; font-size: .92rem; }
+  footer { margin-top: 2.5rem; color: #6e7681; font-size: .85rem; line-height: 1.5; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Harbor Range — a red-team proving range for agent spend policies</h1>
+
+  <p class="honest">Live in-browser run of the Harbor Range simulation — local simulation, mock NEAR testnet adapter, no chain transactions.</p>
+
+  <p class="how">
+    Press the button and this page executes the harbor-range package's own cage check —
+    <code>scripts/run_harbor_cage_check.js</code> — together with the real
+    <code>src/harbor/</code> modules, right here in your browser. Nothing below is pasted
+    output: every line is produced by the code at the moment you run it (lines are revealed
+    progressively only so you can follow along). The only shims are at the runtime edges —
+    <code>console.log</code> is captured for display and <code>process.exit</code> is
+    intercepted so the page can show the verdict instead of closing.
+  </p>
+
+  <p>
+    <button id="run" type="button">Run the range</button>
+    <span id="status">Not run yet.</span>
+  </p>
+
+  <h2>Attack log — 7 days, seed 1</h2>
+  <pre id="log" aria-live="polite"></pre>
+
+  <h2>Cage check — every condition named</h2>
+  <pre id="conditions" aria-live="polite"></pre>
+
+  <div id="verdict" role="status">
+    <div class="big" id="verdict-line"></div>
+    <div class="sub" id="verdict-sub"></div>
+  </div>
+
+  <footer>
+    Harbor Range is a deterministic local simulation: scripted attacker personas
+    (iron_flooder, wash_trader, buy_everything) stress a small agent economy for a
+    scripted week, and the run passes only if at least one market stall survives
+    solvent. Settlements are recorded through a mock NEAR testnet adapter
+    (NEP-245-shaped) — no wallet, no keys, no mainnet, no chain transactions.
+    The script and modules served with this page are byte-identical copies of the
+    harbor-range package files; the package itself is unchanged.
+  </footer>
+</main>
+
+<script type="module">
+  const runBtn = document.getElementById('run');
+  const statusEl = document.getElementById('status');
+  const logEl = document.getElementById('log');
+  const condEl = document.getElementById('conditions');
+  const verdictEl = document.getElementById('verdict');
+  const verdictLine = document.getElementById('verdict-line');
+  const verdictSub = document.getElementById('verdict-sub');
+
+  // Shim sentinel: thrown by the process.exit shim to halt the script the way
+  // a real process exit would.
+  class ProcessExit extends Error {
+    constructor(code) { super(`process.exit(${code})`); this.code = code; }
+  }
+
+  async function executeCageCheck() {
+    const lines = [];
+    let exitCode = null;
+    const originalLog = console.log;
+    console.log = (...args) => { lines.push(args.map(String).join(' ')); };
+    globalThis.process = {
+      exit(code) { exitCode = code ?? 0; throw new ProcessExit(exitCode); },
+    };
+    try {
+      // Cache-busting query so repeat clicks re-execute the script.
+      await import('./scripts/run_harbor_cage_check.js?run=' + Date.now());
+    } catch (err) {
+      if (err instanceof ProcessExit) {
+        // Normal termination via the shim.
+      } else {
+        lines.push('ERROR while running the cage check: ' + (err && err.message ? err.message : String(err)));
+        if (exitCode === null) exitCode = -1;
+      }
+    } finally {
+      console.log = originalLog;
+      delete globalThis.process;
+    }
+    return { lines, exitCode };
+  }
+
+  function classify(line) {
+    if (line.startsWith('GREEN: ') || line.startsWith('RED: ')) return 'verdict';
+    if (line.startsWith('GREEN') || line.startsWith('RED')) return 'condition';
+    return 'log';
+  }
+
+  function renderLine(line, target) {
+    const span = document.createElement('span');
+    if (target === condEl) {
+      span.className = line.startsWith('GREEN') ? 'green' : 'red';
+      span.textContent = line;
+    } else if (line.includes('HELD')) {
+      span.innerHTML = '';
+      span.textContent = line.replace(/HELD$/, '');
+      const held = document.createElement('span');
+      held.className = 'held'; held.textContent = 'HELD';
+      span.appendChild(held);
+    } else if (line.includes('BROKEN')) {
+      span.textContent = line.replace(/BROKEN$/, '');
+      const broken = document.createElement('span');
+      broken.className = 'broken'; broken.textContent = 'BROKEN';
+      span.appendChild(broken);
+    } else {
+      span.textContent = line;
+    }
+    target.appendChild(span);
+    target.appendChild(document.createTextNode('\n'));
+  }
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  runBtn.addEventListener('click', async () => {
+    runBtn.disabled = true;
+    logEl.textContent = '';
+    condEl.textContent = '';
+    verdictEl.style.display = 'none';
+    verdictEl.classList.remove('fail');
+    statusEl.textContent = 'Running the real cage check in your browser…';
+
+    const { lines, exitCode } = await executeCageCheck();
+
+    let finalLine = '';
+    for (const line of lines) {
+      const kind = classify(line);
+      if (kind === 'verdict') { finalLine = line; continue; }
+      if (line === '') continue;
+      renderLine(line, kind === 'condition' ? condEl : logEl);
+      await sleep(110);
+    }
+
+    const survival = lines.find((l) => l.includes('stallsSurvivedAttack'));
+    verdictLine.textContent = finalLine || '(no verdict line produced)';
+    verdictLine.className = 'big ' + (exitCode === 0 ? 'green' : 'red');
+    verdictSub.textContent =
+      `Cage-check exit code: ${exitCode}` +
+      (survival ? ` · Survival evidence — ${survival.replace(/^GREEN\s+/, '')}` : '');
+    verdictEl.classList.toggle('fail', exitCode !== 0);
+    verdictEl.style.display = 'block';
+    statusEl.textContent = `Run complete — exit code ${exitCode}.`;
+    runBtn.disabled = false;
+    runBtn.textContent = 'Run it again';
+  });
+</script>
+</body>
+</html>

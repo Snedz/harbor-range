@@ -5,13 +5,27 @@
 Scripted attacker personas spend a week attacking a small agent economy —
 three NPC market stalls with finite coin reserves, demand-driven prices,
 and a settlement ledger. The economy defends itself with nothing but its
-market rules, and the week ends in a pass/fail verdict: **at least one
-stall still solvent and open, and no stall ever paying out coin it does
-not hold** (`stallsSurvivedAttack`). If the invariant fails, the sim
-rejects its own report and the commands exit non-zero.
+market rules, and the week ends in a pass/fail verdict. The primary
+claim is solvency: **no stall ever pays out coin it does not hold**. The
+secondary, market-level claim is survival: at least one stall still
+open at week's end (`stallsSurvivedAttack`). If the invariant fails,
+the sim rejects its own report and the commands exit non-zero.
 
 Built at **NEAR HACKATHON** — tracks **AI Security & Defense**
 (`security`) and **Agent Economy** (`agents`).
+
+**The only standalone proving range found in the field.** The security
+track's other entries are guards — a spend policy testing itself.
+Harbor Range is the range a policy is brought to: the personas, the
+invariants, and the verdict are independent of the market under test,
+and the whole battery re-runs deterministically from a fresh clone.
+
+**Recorded verdicts** (exact outputs in [VERIFY.md](VERIFY.md)):
+41/41 unit tests · 10/10 cage conditions · `Harbor Judge Demo PASS` ·
+survival invariant held on **100/100 seeds** · the adaptive raider
+held to the invariant · a deliberately weakened policy (partial
+payouts) **rejected** by the negative control. One command runs the
+battery: `npm run verify` — **8/8 checks green**.
 
 ## Why this exists
 
@@ -23,6 +37,12 @@ prompt asks for an attack demo with a shown log; Harbor Range
 generalizes that one-off demo into a reusable range — the same personas,
 the same invariants, a deterministic verdict anyone can re-run from a
 fresh clone.
+
+For the Agent Economy track, read the range as pre-deployment
+certification: an agent that will hold a wallet first runs its spend
+policy here, against rehearsed abuse and a same-seed control, and
+ships only if the verdict is green — the same gate we apply to our
+own fleet's spend actions before any of them touch a real key.
 
 ## What is real, what is mock
 
@@ -40,6 +60,7 @@ needed (Node.js 18 or newer; the package has zero dependencies).
 
 | # | Do this | See that |
 |---|---------|----------|
+| 0 | `npm run verify` | The whole battery (tests, cage check, judge demo, range week, same-seed control, adaptive scenario, negative control, seed sweep) in one summary, ending `VERIFY PASS: 8/8 checks green.` Exit code 0. Exact outputs: [VERIFY.md](VERIFY.md). |
 | 1 | `npm install` | Completes cleanly; there is nothing to install (zero dependencies). |
 | 2 | `npm test` | `tests 41`, `pass 41`, `fail 0`. |
 | 3 | `npm run attack` | The 7-day attack log (each day: persona, trades, refusals, stalls still open, `HELD`), then one `GREEN` line per condition, ending `GREEN: all 10 conditions hold.` Exit code 0. |
@@ -113,8 +134,12 @@ land in. Stall account ids in the ledger (`ironmonger.harbor.testnet`,
 - The economy is small by design — 3 stalls, 3 goods, 3 upgrades — so a
   week runs in milliseconds and fits in one report. It proves the
   policy mechanics, not scale.
-- The attackers are scripted personas, not adaptive agents. They
-  rehearse known abuse shapes; they do not invent new ones.
+- The three week personas are scripted, not adaptive: they rehearse
+  known abuse shapes and do not invent new ones. One separate scenario
+  (`npm run harbor:adaptive:check`) is adaptive in a narrow sense — it
+  probes published quotes, commits to one stall at a time, and sizes
+  lots from a reserve model it corrects on refusals — but it follows a
+  scripted adaptation rule; it is not a learning agent.
 - Local-only: there is no hosted demo. The judge demo is a terminal
   run with fixed seeds, and the demo video carries the visual case.
 
