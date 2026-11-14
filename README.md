@@ -27,6 +27,9 @@ held to the invariant · a deliberately weakened policy (partial
 payouts) **rejected** by the negative control. One command runs the
 battery: `npm run verify` — **8/8 checks green**.
 
+**Live demo:** https://snedz.github.io/harbor-range/ — runs the actual
+cage-check code in your browser, no install needed.
+
 ## Why this exists
 
 We run a fleet of agents that can spend. Before any spend policy is
@@ -51,7 +54,7 @@ own fleet's spend actions before any of them touch a real key.
 | **Real** | The economy and its rules: stall reserves, reserve-bounded payouts, demand-driven pricing, closed-stall refusals, the settlement ledger. The three attacker personas and the 7-day range orchestration. The report validators — a run that breaks the invariant fails loudly. The full test suite (41 tests) and the attack log: every refusal quoted in this repo is the market's own output. |
 | **Mock** | NEAR settlement. Trades settle through a mock testnet adapter (`src/harbor/near/`) that records NEP-245-shaped transfer batches locally and issues receipts with `MOCK_`-prefixed hashes and `status: 'simulated'`. No transaction reaches any chain. |
 | **Sketch only** | `contract/harbor-market/` is an undeployed Rust contract sketch (NEP-245-style `record_settlement`). A static gate test pins its dependencies and checks the deploy script carries no secrets; nothing builds or deploys it in the demo path. |
-| **Not here** | No wallet, no keys, no mainnet. The adapter refuses mainnet in code. No hosted demo — this is a local, deterministic range; the video is the visual evidence. |
+| **Not here** | No wallet, no keys, no mainnet. The adapter refuses mainnet in code. |
 
 ## Judge steps: do this, see that
 
@@ -140,7 +143,8 @@ land in. Stall account ids in the ledger (`ironmonger.harbor.testnet`,
   probes published quotes, commits to one stall at a time, and sizes
   lots from a reserve model it corrects on refusals — but it follows a
   scripted adaptation rule; it is not a learning agent.
-- Local-only: there is no hosted demo. The judge demo is a terminal
+- The hosted demo at https://snedz.github.io/harbor-range/ runs the
+  cage-check code in the browser; the full battery is still a terminal
   run with fixed seeds, and the demo video carries the visual case.
 
 ## Provenance (hackathon Q-001 – Q-005)
